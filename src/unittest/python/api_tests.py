@@ -9,10 +9,10 @@ from percept import api
 class TestExperimentsEndpoint(TestCase):
 
     def setUp(self):
-        self.mock_experiment = mock.patch('api.Experiment').start()
-        self.mock_select = mock.patch('api.orm.select').start()
-        self.mock_user = mock.patch('api.User').start()
-        self.mock_trial = mock.patch('api.Trial').start()
+        self.mock_experiment = mock.patch('percept.api.Experiment').start()
+        self.mock_select = mock.patch('percept.api.orm.select').start()
+        self.mock_user = mock.patch('percept.api.User').start()
+        self.mock_trial = mock.patch('percept.api.Trial').start()
 
     def tearDown(self):
         mock.patch.stopall()
