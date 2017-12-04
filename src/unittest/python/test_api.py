@@ -3,7 +3,7 @@ import hug
 from falcon import HTTP_200, HTTP_400
 from pony import orm
 
-import api
+from percept import api
 
 
 class TestExperimentsEndpoint(TestCase):

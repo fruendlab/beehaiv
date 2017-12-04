@@ -1,5 +1,5 @@
 import hug
-import api
+from percept import api
 
 
 @hug.extend_api()
