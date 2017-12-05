@@ -98,9 +98,13 @@ def put_experiments(exp_id: int, body, response):
 
 # End point /experiments/<id>/trials/
 @hug.get('/experiments/{exp_id}/trials/')
-def get_all_experiments_trials(exp_id: int):
+def get_all_experiments_trials(exp_id: int, response):
     with orm.db_session():
-        expr = Experiment[exp_id]
+        try:
+            expr = Experiment[exp_id]
+        except orm.ObjectNotFound:
+            response.status = falcon.HTTP_404
+            return
         return [trial.summary() for trial in expr.trials]
 
 
@@ -121,7 +125,7 @@ def get_experiments_trials(exp_id: int, trial_id: int, response):
         if trial in expr.trials:
             return trial.summary()
         else:
-            response.status = falcon.http_400
+            response.status = falcon.HTTP_400
 
 
 # End point /users/
