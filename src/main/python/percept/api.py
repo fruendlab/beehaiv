@@ -109,10 +109,18 @@ def get_all_experiments_trials(exp_id: int, response):
 
 
 @hug.post('/experiments/{exp_id}/trials/')
-def post_experiments_trials(exp_id: int, body):
+def post_experiments_trials(exp_id: int, body, response):
     with orm.db_session():
-        expr = Experiment[exp_id]
-        trial = expr.trials.create(**body)
+        try:
+            expr = Experiment[exp_id]
+        except orm.ObjectNotFound:
+            response.status = falcon.HTTP_404
+            return
+        try:
+            trial = expr.trials.create(**body)
+        except ValueError:
+            response.status = falcon.HTTP_400
+            return
         orm.commit()
         return trial.summary()
 
@@ -120,21 +128,28 @@ def post_experiments_trials(exp_id: int, body):
 @hug.get('/experiments/{exp_id}/trials/{trial_id}/')
 def get_experiments_trials(exp_id: int, trial_id: int, response):
     with orm.db_session():
-        expr = Experiment[exp_id]
-        trial = Trial[trial_id]
+        try:
+            expr = Experiment[exp_id]
+            trial = Trial[trial_id]
+        except orm.ObjectNotFound:
+            response.status = falcon.HTTP_404
+            return
         if trial in expr.trials:
             return trial.summary()
         else:
-            response.status = falcon.HTTP_400
+            response.status = falcon.HTTP_404
 
 
 # End point /users/
 @hug.post('/users/')
-def post_users(body):
-    with orm.db_session():
-        user = User(username=body['username'], password=body['password'])
-    with orm.db_session():
+def post_users(body, response):
+    try:
+        with orm.db_session():
+            user = User(username=body['username'], password=body['password'])
         return user.safe_json()
+    except orm.TransactionIntegrityError:
+        response.status = falcon.HTTP_409
+        return
 
 
 @hug.get('/users/')
@@ -144,17 +159,21 @@ def get_all_users():
 
 
 @hug.put('/users/{user_id}/')
-def put_users(user_id: int, body=None):
-    if body is None:
-        body = {}
+def put_users(user_id: int, body, response):
     with orm.db_session():
         user = User[user_id]
+        if not set(body.keys()).issubset({'username', 'password'}):
+            response.status = falcon.HTTP_400
+            return
         for key, value in body.items():
             setattr(user, key, value)
         return user.safe_json()
 
 
 @hug.get('/users/{user_id}/')
-def get_users(user_id: int):
+def get_users(user_id: int, response):
     with orm.db_session():
-        return User[user_id].safe_json()
+        try:
+            return User[user_id].safe_json()
+        except orm.ObjectNotFound:
+            response.status = falcon.HTTP_404
