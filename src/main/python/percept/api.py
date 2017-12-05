@@ -12,30 +12,30 @@ class Experiment(db.Entity):
     owner = orm.Required('User')
     name = orm.Required(str)
     trials = orm.Set('Trial')
+    variable_names = orm.Required(str)
 
     def summary(self):
         return {'id': self.id,
                 'owner': self.owner.id,
                 'name': self.name,
-                'trial_count': len(self.trials)}
+                'trial_count': len(self.trials),
+                'variable_names': self.variable_names}
 
 
 class Trial(db.Entity):
     experiment = orm.Required(Experiment)
     observer = orm.Required('User')
-    response = orm.Required(str)
-    stimulus = orm.Required(str)
-    condition = orm.Required(str)
-    meta = orm.Optional(str)
+    trial_data = orm.Required(str)
 
     def summary(self):
-        return {'id': self.id,
+        data = {'id': self.id,
                 'experiment': self.experiment.id,
-                'observer': self.observer.id,
-                'response': self.response,
-                'stimulus': self.stimulus,
-                'condition': self.condition,
-                'meta': self.meta}
+                'observer': self.observer.id}
+        data.update({key: value
+                    for key, value in
+                    zip(self.experiment.variable_names.split(','),
+                        self.trial_data.split(','))})
+        return data
 
 
 class User(db.Entity):
@@ -76,7 +76,9 @@ def post_experiments(body, response):
         return
     with orm.db_session():
         owner = User[body['owner']]
-        expr = Experiment(owner=owner, name=body['name'])
+        expr = Experiment(owner=owner,
+                          name=body['name'],
+                          variable_names=body['variable_names'])
     with orm.db_session():
         return expr.summary()
 
@@ -116,11 +118,21 @@ def post_experiments_trials(exp_id: int, body, response):
         except orm.ObjectNotFound:
             response.status = falcon.HTTP_404
             return
+
         try:
-            trial = expr.trials.create(**body)
-        except ValueError:
+            observer = User[body.pop('observer')]
+            trial_data = ','.join([body.pop(key)
+                                   for key in expr.variable_names.split(',')])
+        except KeyError:
             response.status = falcon.HTTP_400
             return
+
+        if len(body):
+            response.status = falcon.HTTP_400
+            return
+
+        trial = expr.trials.create(observer=observer, trial_data=trial_data)
+
         orm.commit()
         return trial.summary()
 

@@ -14,9 +14,10 @@ class TestExperimentsEndpoint(TestCase):
     def setUp(self):
         api.db.drop_all_tables(with_all_data=True)
         api.db.create_tables()
-        self.expected_expr_keys = {'id', 'owner', 'name', 'trial_count'}
+        self.expected_expr_keys = {'id', 'owner', 'name', 'trial_count',
+                                   'variable_names'}
         self.expected_trial_keys = {'id', 'experiment', 'observer', 'stimulus',
-                                    'response', 'condition', 'meta'}
+                                    'response', 'condition'}
         self.expected_user_keys = {'id', 'username', 'experiment_count',
                                    'trial_count'}
 
@@ -24,12 +25,14 @@ class TestExperimentsEndpoint(TestCase):
         pass
 
     def create_experiment_with_user(self, ownerid=None):
+        variable_names = 'stimulus,response,condition'
         with orm.db_session():
             if ownerid is None:
                 user = api.User(username='ANY_NAME', password='ANY_PASSWORD')
             else:
                 user = api.User[ownerid]
-            expr = api.Experiment(owner=user, name='ANY_EXPERIMENT')
+            expr = api.Experiment(owner=user, name='ANY_EXPERIMENT',
+                                  variable_names=variable_names)
         return user.id, expr.id
 
     def create_user(self, username='SINGLE_USER'):
@@ -44,9 +47,7 @@ class TestExperimentsEndpoint(TestCase):
         trials = [
             api.Trial(experiment=expr,
                       observer=observer,
-                      response='ANY_RESPONSE',
-                      stimulus='ANY_STIMULUS',
-                      condition='ANY_CONDITION')
+                      trial_data='ANY_RESPONSE,ANY_STIMULUS,ANY_CONDITION')
             for _ in range(n)]
         orm.commit()
         return [trial.id for trial in trials]
@@ -70,7 +71,8 @@ class TestExperimentsEndpoint(TestCase):
         userid = self.create_user()
         resp = hug.test.post(api,
                              '/experiments/',
-                             {'owner': userid, 'name': 'ANY_NAME'})
+                             {'owner': userid, 'name': 'ANY_NAME',
+                              'variable_names': 'response,stimulus,condition'})
 
         # Return stuff
         self.assertEqual(resp.status, HTTP_200)
@@ -253,3 +255,53 @@ class TestExperimentsEndpoint(TestCase):
     def test_get_nonexisting_user(self):
         resp = hug.test.get(api, '/users/1')
         self.assertEqual(resp.status, HTTP_404)
+
+
+class TestFlexibleExperimentSetup(TestCase):
+
+    def setUp(self):
+        api.db.drop_all_tables(with_all_data=True)
+        api.db.create_tables()
+
+        with orm.db_session():
+            user = api.db.User(username='ANY_USER', password='ANY_PASSWORD')
+            exp1 = api.db.Experiment(owner=user, name='EXPERIMENT1',
+                                     variable_names='A,B,C')
+            exp2 = api.db.Experiment(owner=user, name='EXPERIMENT2',
+                                     variable_names='A,D,E')
+        self.userid = user.id
+        self.exp1id = exp1.id
+        self.exp2id = exp2.id
+
+    def test_post_trial_with_valid_layout(self):
+        resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp1id),
+                             {'observer': self.userid,
+                              'A': 'a',
+                              'B': 'b',
+                              'C': 'c'})
+        self.assertEqual(resp.status, HTTP_200)
+
+    def test_post_trial_with_layout_of_other_exp(self):
+        resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp2id),
+                             {'observer': self.userid,
+                              'A': 'a',
+                              'B': 'b',
+                              'C': 'c'})
+        self.assertEqual(resp.status, HTTP_400)
+
+    def test_post_trial_with_variables_from_other_exp(self):
+        resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp1id),
+                             {'observer': self.userid,
+                              'A': 'a',
+                              'B': 'b',
+                              'C': 'c',
+                              'E': 'e'})
+        self.assertEqual(resp.status, HTTP_400)
+
+    def test_post_trial_with_incomplete_specs(self):
+        resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp1id),
+                             {'observer': self.userid,
+                              'A': 'a',
+                              'B': 'b',
+                              })
+        self.assertEqual(resp.status, HTTP_400)
