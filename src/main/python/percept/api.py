@@ -82,9 +82,13 @@ def post_experiments(body, response):
 
 
 @hug.put('/experiments/{exp_id}/')
-def put_experiments(exp_id: int, body):
+def put_experiments(exp_id: int, body, response):
     with orm.db_session():
-        expr = Experiment[exp_id]
+        try:
+            expr = Experiment[exp_id]
+        except orm.ObjectNotFound:
+            response.status = falcon.HTTP_404
+            return
         if 'name' in body:
             expr.name = body['name']
         if 'owner' in body:
