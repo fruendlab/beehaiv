@@ -18,3 +18,4 @@ version = count_travis()
 def set_properties(project):
     project.depends_on('hug')
     project.depends_on('pony')
+    project.depends_on('PyJWT')

@@ -4,6 +4,7 @@ from falcon import HTTP_200, HTTP_400, HTTP_404, HTTP_409
 from pony import orm
 
 from percept import api
+from percept.crypto import create_token
 
 api.db.bind(provider='sqlite', filename=':memory:')
 api.db.generate_mapping(create_tables=True)
@@ -20,6 +21,7 @@ class TestExperimentsEndpoint(TestCase):
                                     'response', 'condition'}
         self.expected_user_keys = {'id', 'username', 'experiment_count',
                                    'trial_count'}
+        self.adminid = self.create_user('ADMIN_USER', True)
 
     def tearDown(self):
         pass
@@ -28,16 +30,20 @@ class TestExperimentsEndpoint(TestCase):
         variable_names = 'stimulus,response,condition'
         with orm.db_session():
             if ownerid is None:
-                user = api.User(username='ANY_NAME', password='ANY_PASSWORD')
+                user = api.User(username='ANY_NAME',
+                                password='ANY_PASSWORD',
+                                isadmin=True)
             else:
                 user = api.User[ownerid]
             expr = api.Experiment(owner=user, name='ANY_EXPERIMENT',
                                   variable_names=variable_names)
         return user.id, expr.id
 
-    def create_user(self, username='SINGLE_USER'):
+    def create_user(self, username='SINGLE_USER', isadmin=False):
         with orm.db_session():
-            user = api.User(username=username, password='ANY_PASSWORD')
+            user = api.User(username=username,
+                            password='ANY_PASSWORD',
+                            isadmin=isadmin)
         return user.id
 
     @orm.db_session()
@@ -52,15 +58,22 @@ class TestExperimentsEndpoint(TestCase):
         orm.commit()
         return [trial.id for trial in trials]
 
+    @orm.db_session()
+    def get_header(self, userid=None):
+        if userid is None:
+            userid = self.adminid
+        user = api.User[userid]
+        return {'Authorization': create_token(user.username)}
+
     def test_get_experiments_for_empty_experiments(self):
-        resp = hug.test.get(api, '/experiments/')
+        resp = hug.test.get(api, '/experiments/', headers=self.get_header())
         self.assertEqual(resp.status, HTTP_200)
         self.assertSequenceEqual(resp.data, [])
 
     def test_get_experiments_for_existing_experiments(self):
         userid, expid = self.create_experiment_with_user()
 
-        resp = hug.test.get(api, '/experiments/')
+        resp = hug.test.get(api, '/experiments/', headers=self.get_header())
 
         self.assertEqual(resp.status, HTTP_200)
         self.assertIsInstance(resp.data, list)
@@ -72,7 +85,8 @@ class TestExperimentsEndpoint(TestCase):
         resp = hug.test.post(api,
                              '/experiments/',
                              {'owner': userid, 'name': 'ANY_NAME',
-                              'variable_names': 'response,stimulus,condition'})
+                              'variable_names': 'response,stimulus,condition'},
+                             headers=self.get_header())
 
         # Return stuff
         self.assertEqual(resp.status, HTTP_200)
@@ -81,19 +95,22 @@ class TestExperimentsEndpoint(TestCase):
     def test_post_experiments_fails_if_missing_arguments(self):
         resp = hug.test.post(api,
                              '/experiments/',
-                             {'owner': 1})
+                             {'owner': 1},
+                             headers=self.get_header())
         self.assertEqual(resp.status, HTTP_400)
 
     def test_get_existing_experiment(self):
         userid, expid = self.create_experiment_with_user()
 
-        resp = hug.test.get(api, '/experiments/{}/'.format(expid))
+        resp = hug.test.get(api,
+                            '/experiments/{}/'.format(expid),
+                            headers=self.get_header())
 
         self.assertEqual(resp.status, HTTP_200)
         self.assertEqual(set(resp.data.keys()), self.expected_expr_keys)
 
     def test_get_unexisting_experiment(self):
-        resp = hug.test.get(api, '/experiments/1/')
+        resp = hug.test.get(api, '/experiments/1/', headers=self.get_header())
         self.assertEqual(resp.status, HTTP_404)
 
     def test_put_existing_experiment_change_name(self):
@@ -101,7 +118,8 @@ class TestExperimentsEndpoint(TestCase):
 
         resp = hug.test.put(api,
                             '/experiments/{}/'.format(expid),
-                            {'name': 'OTHER_EXPERIMENT'})
+                            {'name': 'OTHER_EXPERIMENT'},
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_200)
         self.assertEqual(resp.data['name'], 'OTHER_EXPERIMENT')
 
@@ -111,20 +129,23 @@ class TestExperimentsEndpoint(TestCase):
 
         resp = hug.test.put(api,
                             '/experiments/{}/'.format(expid),
-                            {'owner': other_userid})
+                            {'owner': other_userid},
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_200)
         self.assertEqual(resp.data['owner'], other_userid)
 
     def test_put_to_non_existing_experiment_gives_404(self):
         resp = hug.test.put(api,
                             '/experiments/1/',
-                            {'name': 'OTHER_EXPERIMENT'})
+                            {'name': 'OTHER_EXPERIMENT'},
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_404)
 
     def test_get_all_trials_for_empty_exp(self):
         userid, expid = self.create_experiment_with_user()
         resp = hug.test.get(api,
-                            '/experiments/{}/trials'.format(expid))
+                            '/experiments/{}/trials'.format(expid),
+                            headers=self.get_header())
 
         self.assertEqual(resp.status, HTTP_200)
         self.assertSequenceEqual(resp.data, [])
@@ -134,14 +155,16 @@ class TestExperimentsEndpoint(TestCase):
         self.create_trials_in_experiment(expid, userid, 2)
 
         resp = hug.test.get(api,
-                            '/experiments/{}/trials'.format(expid))
+                            '/experiments/{}/trials'.format(expid),
+                            headers=self.get_header())
 
         self.assertEqual(resp.status, HTTP_200)
         self.assertEqual(len(resp.data), 2)
 
     def test_get_all_trials_from_nonexisting_exp(self):
         resp = hug.test.get(api,
-                            '/experiments/1/trials')
+                            '/experiments/1/trials',
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_404)
 
     def test_post_trial_to_experiment(self):
@@ -151,7 +174,8 @@ class TestExperimentsEndpoint(TestCase):
                              {'observer': userid,
                               'response': 'ANY_RESPONSE',
                               'stimulus': 'ANY_STIMULUS',
-                              'condition': 'ANY_CONDITION'})
+                              'condition': 'ANY_CONDITION'},
+                             headers=self.get_header(userid))
         self.assertEqual(resp.status, HTTP_200)
         self.assertEqual(set(resp.data.keys()), self.expected_trial_keys)
 
@@ -162,7 +186,8 @@ class TestExperimentsEndpoint(TestCase):
                              {'observer': userid,
                               'response': 'ANY_RESPONSE',
                               'stimulus': 'ANY_STIMULUS',
-                              'condition': 'ANY_CONDITION'})
+                              'condition': 'ANY_CONDITION'},
+                             headers=self.get_header(userid))
         self.assertEqual(resp.status, HTTP_404)
 
     def test_post_trial_with_incomplete_specs(self):
@@ -170,7 +195,8 @@ class TestExperimentsEndpoint(TestCase):
         resp = hug.test.post(api,
                              '/experiments/{}/trials'.format(expid),
                              {'observer': userid,
-                              'response': 'ANY_RESPONSE'})
+                              'response': 'ANY_RESPONSE'},
+                             headers=self.get_header(userid))
         self.assertEqual(resp.status, HTTP_400)
 
     def test_get_trial_with_id(self):
@@ -178,17 +204,22 @@ class TestExperimentsEndpoint(TestCase):
         trial_ids = self.create_trials_in_experiment(expid, userid)
         resp = hug.test.get(api,
                             '/experiments/{}/trials/{}'.format(expid,
-                                                               trial_ids[0]))
+                                                               trial_ids[0]),
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_200)
         self.assertSetEqual(set(resp.data.keys()), self.expected_trial_keys)
 
     def test_get_trial_from_nonexisting_exp(self):
-        resp = hug.test.get(api, '/experiments/1/trials/1')
+        resp = hug.test.get(api,
+                            '/experiments/1/trials/1',
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_404)
 
     def test_get_nonexisting_trial_from_existing_exp(self):
         userid, expid = self.create_experiment_with_user()
-        resp = hug.test.get(api, '/experiment/{}/trials/1'.format(expid))
+        resp = hug.test.get(api,
+                            '/experiment/{}/trials/1'.format(expid),
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_404)
 
     def test_get_trial_from_other_experiment(self):
@@ -197,7 +228,8 @@ class TestExperimentsEndpoint(TestCase):
         trial_ids = self.create_trials_in_experiment(expid, userid)
         resp = hug.test.get(api,
                             '/experiments/{}/trials/{}'.format(otherexpid,
-                                                               trial_ids[0]))
+                                                               trial_ids[0]),
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_404)
 
     def test_post_user(self):
@@ -212,29 +244,25 @@ class TestExperimentsEndpoint(TestCase):
                                               'password': 'ANY_PASSWORD'})
         self.assertEqual(resp.status, HTTP_409)
 
-    def test_get_all_users_with_no_users(self):
-        resp = hug.test.get(api, '/users/')
-        self.assertEqual(resp.status, HTTP_200)
-        self.assertSequenceEqual(resp.data, [])
-
     def test_get_all_users_with_two_users(self):
         self.create_user()
-        self.create_user('OTHER_USER')
-        resp = hug.test.get(api, '/users/')
+        resp = hug.test.get(api, '/users/', headers=self.get_header())
         self.assertEqual(resp.status, HTTP_200)
         self.assertEqual(len(resp.data), 2)
 
     def test_put_user_updates_username(self):
         userid = self.create_user()
         resp = hug.test.put(api, '/users/{}'.format(userid),
-                            {'username': 'OTHER_USER'})
+                            {'username': 'OTHER_USER'},
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_200)
         self.assertEqual(resp.data['username'], 'OTHER_USER')
 
     def test_put_user_updates_password(self):
         userid = self.create_user()
         resp = hug.test.put(api, '/users/{}'.format(userid),
-                            {'password': 'NEW_PASSWORD'})
+                            {'password': 'NEW_PASSWORD'},
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_200)
         with orm.db_session():
             user = api.User[userid]
@@ -243,17 +271,21 @@ class TestExperimentsEndpoint(TestCase):
     def test_put_user_on_invalid_key(self):
         userid = self.create_user()
         resp = hug.test.put(api, '/users/{}'.format(userid),
-                            {'trial_count': 5})
+                            {'trial_count': 5},
+                            headers=self.get_header())
         self.assertEqual(resp.status, HTTP_400)
 
     def test_get_existing_user(self):
         userid = self.create_user()
-        resp = hug.test.get(api, '/users/{}'.format(userid))
+        headers = self.get_header()
+
+        resp = hug.test.get(api, '/users/{}'.format(userid), headers=headers)
         self.assertEqual(resp.status, HTTP_200)
         self.assertSetEqual(set(resp.data.keys()), self.expected_user_keys)
 
     def test_get_nonexisting_user(self):
-        resp = hug.test.get(api, '/users/1')
+        headers = self.get_header()
+        resp = hug.test.get(api, '/users/500', headers=headers)
         self.assertEqual(resp.status, HTTP_404)
 
 
@@ -264,21 +296,36 @@ class TestFlexibleExperimentSetup(TestCase):
         api.db.create_tables()
 
         with orm.db_session():
-            user = api.db.User(username='ANY_USER', password='ANY_PASSWORD')
+            admin = api.db.User(username='ADMIN_USER',
+                                password='ADMIN_PASSWORD',
+                                isadmin=True)
+            user = api.db.User(username='ANY_USER',
+                               password='ANY_PASSWORD',
+                               isadmin=False)
             exp1 = api.db.Experiment(owner=user, name='EXPERIMENT1',
                                      variable_names='A,B,C')
             exp2 = api.db.Experiment(owner=user, name='EXPERIMENT2',
                                      variable_names='A,D,E')
+
+        self.adminid = admin.id
         self.userid = user.id
         self.exp1id = exp1.id
         self.exp2id = exp2.id
+
+    @orm.db_session()
+    def get_header(self, userid=None):
+        if userid is None:
+            userid = self.adminid
+        user = api.User[userid]
+        return {'Authorization': create_token(user.username)}
 
     def test_post_trial_with_valid_layout(self):
         resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp1id),
                              {'observer': self.userid,
                               'A': 'a',
                               'B': 'b',
-                              'C': 'c'})
+                              'C': 'c'},
+                             headers=self.get_header())
         self.assertEqual(resp.status, HTTP_200)
 
     def test_post_trial_with_layout_of_other_exp(self):
@@ -286,7 +333,8 @@ class TestFlexibleExperimentSetup(TestCase):
                              {'observer': self.userid,
                               'A': 'a',
                               'B': 'b',
-                              'C': 'c'})
+                              'C': 'c'},
+                             headers=self.get_header())
         self.assertEqual(resp.status, HTTP_400)
 
     def test_post_trial_with_variables_from_other_exp(self):
@@ -295,7 +343,8 @@ class TestFlexibleExperimentSetup(TestCase):
                               'A': 'a',
                               'B': 'b',
                               'C': 'c',
-                              'E': 'e'})
+                              'E': 'e'},
+                             headers=self.get_header())
         self.assertEqual(resp.status, HTTP_400)
 
     def test_post_trial_with_incomplete_specs(self):
@@ -303,5 +352,6 @@ class TestFlexibleExperimentSetup(TestCase):
                              {'observer': self.userid,
                               'A': 'a',
                               'B': 'b',
-                              })
+                              },
+                             headers=self.get_header())
         self.assertEqual(resp.status, HTTP_400)

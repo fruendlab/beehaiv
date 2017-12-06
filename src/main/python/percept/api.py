@@ -2,57 +2,16 @@ import hug
 from pony import orm
 import falcon
 
-db = orm.Database()
+from .models import db, Experiment, Trial, User
+from . import crypto
 
-# basic_auth = hug.http(requires=hug.authentication.basic())
-# token_auth = hug.http(requires=hug.authentication.token_key_authentication())
-
-
-class Experiment(db.Entity):
-    owner = orm.Required('User')
-    name = orm.Required(str)
-    trials = orm.Set('Trial')
-    variable_names = orm.Required(str)
-
-    def summary(self):
-        return {'id': self.id,
-                'owner': self.owner.id,
-                'name': self.name,
-                'trial_count': len(self.trials),
-                'variable_names': self.variable_names}
-
-
-class Trial(db.Entity):
-    experiment = orm.Required(Experiment)
-    observer = orm.Required('User')
-    trial_data = orm.Required(str)
-
-    def summary(self):
-        data = {'id': self.id,
-                'experiment': self.experiment.id,
-                'observer': self.observer.id}
-        data.update({key: value
-                    for key, value in
-                    zip(self.experiment.variable_names.split(','),
-                        self.trial_data.split(','))})
-        return data
-
-
-class User(db.Entity):
-    username = orm.Required(str, unique=True)
-    password = orm.Required(str)
-    trials = orm.Set(Trial)
-    experiments = orm.Set(Experiment)
-
-    def safe_json(self):
-        return {'id': self.id,
-                'username': self.username,
-                'trial_count': len(self.trials),
-                'experiment_count': len(self.experiments)}
+basic_auth = hug.http(requires=hug.authentication.basic(crypto.verify_user))
+token_auth = hug.http(requires=hug.authentication.token(crypto.verify_token))
+admin_auth = hug.http(requires=hug.authentication.token(crypto.verify_admin))
 
 
 # End point /experiments/
-@hug.get('/experiments/')
+@admin_auth.get('/experiments/')
 def get_all_experiments():
     with orm.db_session():
         owners_experiments = orm.select(e for e in Experiment)
@@ -60,7 +19,7 @@ def get_all_experiments():
                 for expr in owners_experiments]
 
 
-@hug.get('/experiments/{exp_id}/')
+@admin_auth.get('/experiments/{exp_id}/')
 def get_experiments(exp_id: int, response):
     with orm.db_session():
         try:
@@ -69,7 +28,7 @@ def get_experiments(exp_id: int, response):
             response.status = falcon.HTTP_404
 
 
-@hug.post('/experiments/')
+@admin_auth.post('/experiments/')
 def post_experiments(body, response):
     if not ('owner' in body and 'name' in body):
         response.status = falcon.HTTP_400
@@ -83,7 +42,7 @@ def post_experiments(body, response):
         return expr.summary()
 
 
-@hug.put('/experiments/{exp_id}/')
+@admin_auth.put('/experiments/{exp_id}/')
 def put_experiments(exp_id: int, body, response):
     with orm.db_session():
         try:
@@ -99,7 +58,7 @@ def put_experiments(exp_id: int, body, response):
 
 
 # End point /experiments/<id>/trials/
-@hug.get('/experiments/{exp_id}/trials/')
+@admin_auth.get('/experiments/{exp_id}/trials/')
 def get_all_experiments_trials(exp_id: int, response):
     with orm.db_session():
         try:
@@ -110,7 +69,7 @@ def get_all_experiments_trials(exp_id: int, response):
         return [trial.summary() for trial in expr.trials]
 
 
-@hug.post('/experiments/{exp_id}/trials/')
+@token_auth.post('/experiments/{exp_id}/trials/')
 def post_experiments_trials(exp_id: int, body, response):
     with orm.db_session():
         try:
@@ -137,7 +96,7 @@ def post_experiments_trials(exp_id: int, body, response):
         return trial.summary()
 
 
-@hug.get('/experiments/{exp_id}/trials/{trial_id}/')
+@admin_auth.get('/experiments/{exp_id}/trials/{trial_id}/')
 def get_experiments_trials(exp_id: int, trial_id: int, response):
     with orm.db_session():
         try:
@@ -164,28 +123,52 @@ def post_users(body, response):
         return
 
 
-@hug.get('/users/')
+@admin_auth.get('/users/')
 def get_all_users():
     with orm.db_session():
         return [user.safe_json() for user in orm.select(user for user in User)]
 
 
-@hug.put('/users/{user_id}/')
-def put_users(user_id: int, body, response):
+@token_auth.put('/users/{user_id}/')
+def put_users(user_id: int, body, response, user: hug.directives.user):
     with orm.db_session():
-        user = User[user_id]
+        user_ = User[user_id]
         if not set(body.keys()).issubset({'username', 'password'}):
             response.status = falcon.HTTP_400
             return
         for key, value in body.items():
-            setattr(user, key, value)
-        return user.safe_json()
+            setattr(user_, key, value)
+        if check(user, user_):
+            return user_.safe_json()
+        else:
+            response.status = falcon.HTTP_401
 
 
-@hug.get('/users/{user_id}/')
-def get_users(user_id: int, response):
+@token_auth.get('/users/{user_id}/')
+def get_users(user_id: int, response, user: hug.directives.user):
     with orm.db_session():
         try:
-            return User[user_id].safe_json()
+            user_ = User[user_id]
         except orm.ObjectNotFound:
             response.status = falcon.HTTP_404
+            return
+        if check(user, user_):
+            return user_.safe_json()
+        response.status = falcon.HTTP_401
+
+
+@basic_auth.get('/token/')
+def get_token(user: hug.directives.user):
+    return crypto.create_token(user)
+
+
+@orm.db_session()
+def check(username, user):
+    try:
+        active_user = User.get(username=username)
+    except orm.ObjectNotFound:
+        return False
+    if username == user.username or active_user.isadmin:
+        return True
+    else:
+        return False

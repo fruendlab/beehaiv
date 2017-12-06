@@ -1,5 +1,6 @@
 import hug
-from percept import api
+from pony import orm
+from percept import api, models
 
 
 @hug.extend_api()
@@ -9,3 +10,6 @@ def main_api():
 
 api.db.bind(provider='sqlite', filename=':memory:')
 api.db.generate_mapping(create_tables=True)
+
+with orm.db_session():
+    models.User(username='testuser', password='testpass', isadmin=True)
