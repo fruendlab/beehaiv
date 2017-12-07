@@ -12,11 +12,11 @@ jobs:
       - checkout
 
       # Download and cache dependencies
-      - restore_cache:
-          keys:
-          - v1-dependencies-{{ checksum "build.py" }}
-          # fallback to using the latest cache if no exact match is found
-          - v1-dependencies-
+      # - restore_cache:
+      #     keys:
+      #     - v1-dependencies-{{ checksum "build.py" }}
+      #     # fallback to using the latest cache if no exact match is found
+      #     - v1-dependencies-
 
       - run:
           name: install dependencies
@@ -28,10 +28,10 @@ jobs:
             pip install -U pybuilder
             pyb install_dependencies
 
-      - save_cache:
-          paths:
-            - ./venv
-          key: v1-dependencies-{{ checksum "build.py" }}
+        # - save_cache:
+        # -   paths:
+        # -     - ./venv
+        # -   key: v1-dependencies-{{ checksum "build.py" }}
 
       # run tests!
       - run:
