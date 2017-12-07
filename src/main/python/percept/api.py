@@ -132,16 +132,29 @@ def get_all_users():
 @token_auth.put('/users/{user_id}/')
 def put_users(user_id: int, body, response, user: hug.directives.user):
     with orm.db_session():
-        user_ = User[user_id]
-        if not set(body.keys()).issubset({'username', 'password'}):
+        try:
+            active_user = User.get(username=user)
+            user_ = User[user_id]
+        except orm.ObjectNotFound:
+            response.status = falcon.HTTP_404
+            return
+
+        print(1)
+        if not check(user, user_):
+            response.status = falcon.HTTP_401
+            return
+
+        if not set(body.keys()).issubset({'username', 'password', 'isadmin'}):
             response.status = falcon.HTTP_400
             return
+
+        if 'isadmin' in body and not active_user.isadmin:
+            response.status = falcon.HTTP_401
+            return
+
         for key, value in body.items():
             setattr(user_, key, value)
-        if check(user, user_):
-            return user_.safe_json()
-        else:
-            response.status = falcon.HTTP_401
+        return user_.safe_json()
 
 
 @token_auth.get('/users/{user_id}/')

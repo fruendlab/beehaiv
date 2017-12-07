@@ -1,6 +1,6 @@
 from unittest import TestCase
 import hug
-from falcon import HTTP_200, HTTP_400, HTTP_404, HTTP_409
+from falcon import HTTP_200, HTTP_400, HTTP_404, HTTP_409, HTTP_401
 from pony import orm
 
 from percept import api
@@ -355,3 +355,49 @@ class TestFlexibleExperimentSetup(TestCase):
                               },
                              headers=self.get_header())
         self.assertEqual(resp.status, HTTP_400)
+
+
+class TestAutentication(TestCase):
+
+    def setUp(self):
+        api.db.drop_all_tables(with_all_data=True)
+        api.db.create_tables()
+
+        with orm.db_session():
+            admin = api.User(username='ADMIN',
+                             password='ANY_PASSWORD',
+                             isadmin=True)
+            user = api.User(username='ANY_USER', password='ANY_PASSWORD')
+            orm.commit()
+            self.admin_id = admin.id
+            self.user_id = user.id
+
+    @orm.db_session()
+    def get_header(self, userid):
+        user = api.User[userid]
+        return {'Authorization': create_token(user.username)}
+
+    def test_user_can_change_own_username(self):
+        resp = hug.test.put(api, '/users/{}'.format(self.user_id),
+                            {'username': 'OTHER_NAME'},
+                            headers=self.get_header(self.user_id))
+        self.assertEqual(resp.status, HTTP_200)
+        self.assertEqual(resp.data['username'], 'OTHER_NAME')
+
+    def test_user_can_change_own_password(self):
+        resp = hug.test.put(api, '/users/{}'.format(self.user_id),
+                            {'password': 'OTHER_PASSWORD'},
+                            headers=self.get_header(self.user_id))
+        self.assertEqual(resp.status, HTTP_200)
+
+    def test_user_cannot_change_own_admin_status(self):
+        resp = hug.test.put(api, '/users/{}'.format(self.user_id),
+                            {'isadmin': True},
+                            headers=self.get_header(self.user_id))
+        self.assertEqual(resp.status, HTTP_401)
+
+    def test_admin_can_change_other_users_admin_status(self):
+        resp = hug.test.put(api, '/users/{}'.format(self.user_id),
+                            {'isadmin': True},
+                            headers=self.get_header(self.admin_id))
+        self.assertEqual(resp.status, HTTP_200)
