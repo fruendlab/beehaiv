@@ -21,7 +21,8 @@ jobs:
       - run:
           name: install dependencies
           command: |
-            python3 -m venv venv
+            which python
+            python -m venv venv
             . venv/bin/activate
             pip install -U pip
             pip install -U pybuilder
@@ -31,14 +32,10 @@ jobs:
           paths:
             - ./venv
           key: v1-dependencies-{{ checksum "build.py" }}
-        
+
       # run tests!
       - run:
           name: run tests
           command: |
             . venv/bin/activate
             pyb run_unit_tests -X
-
-      - store_artifacts:
-          path: test-reports
-          destination: test-reports
