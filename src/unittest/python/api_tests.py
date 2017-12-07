@@ -368,9 +368,12 @@ class TestAutentication(TestCase):
                              password='ANY_PASSWORD',
                              isadmin=True)
             user = api.User(username='ANY_USER', password='ANY_PASSWORD')
+            other_user = api.User(username='ANY_OTHER_USER',
+                                  password='ANY_PASSWORD')
             orm.commit()
             self.admin_id = admin.id
             self.user_id = user.id
+            self.other_user_id = other_user.id
 
     @orm.db_session()
     def get_header(self, userid):
@@ -395,9 +398,24 @@ class TestAutentication(TestCase):
                             {'isadmin': True},
                             headers=self.get_header(self.user_id))
         self.assertEqual(resp.status, HTTP_401)
+        with orm.db_session():
+            user = api.User[self.user_id]
+            self.assertFalse(user.isadmin)
 
     def test_admin_can_change_other_users_admin_status(self):
         resp = hug.test.put(api, '/users/{}'.format(self.user_id),
                             {'isadmin': True},
                             headers=self.get_header(self.admin_id))
         self.assertEqual(resp.status, HTTP_200)
+        with orm.db_session():
+            user = api.User[self.user_id]
+            self.assertTrue(user.isadmin)
+
+    def test_other_user_cannot_change_users_info(self):
+        resp = hug.test.put(api, '/users/{}'.format(self.user_id),
+                            {'password': 'OTHER_PASSWORD'},
+                            headers=self.get_header(self.other_user_id))
+        self.assertEqual(resp.status, HTTP_401)
+        with orm.db_session():
+            user = api.User[self.user_id]
+            self.assertEqual(user.password, 'ANY_PASSWORD')

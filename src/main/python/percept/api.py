@@ -139,7 +139,6 @@ def put_users(user_id: int, body, response, user: hug.directives.user):
             response.status = falcon.HTTP_404
             return
 
-        print(1)
         if not check(user, user_):
             response.status = falcon.HTTP_401
             return
