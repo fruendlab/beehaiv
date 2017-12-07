@@ -3,8 +3,8 @@ import hug
 from falcon import HTTP_200, HTTP_400, HTTP_404, HTTP_409, HTTP_401
 from pony import orm
 
-from percept import api
-from percept.crypto import create_token
+from beehaiv import api
+from beehaiv.crypto import create_token
 
 api.db.bind(provider='sqlite', filename=':memory:')
 api.db.generate_mapping(create_tables=True)

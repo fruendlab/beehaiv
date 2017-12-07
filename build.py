@@ -9,7 +9,7 @@ use_plugin("python.coverage")
 use_plugin("python.distutils")
 
 
-name = "percept"
+name = "beehaiv"
 default_task = "publish"
 version = count_travis()
 
