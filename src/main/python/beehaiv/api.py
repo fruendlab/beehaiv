@@ -101,7 +101,7 @@ def post_experiments_trials(exp_id: int, body, response):
 
         try:
             observer = User[body.pop('observer')]
-            trial_data = ','.join([body.pop(key)
+            trial_data = ','.join([str(body.pop(key))
                                    for key in expr.variable_names.split(',')])
         except KeyError:
             response.status = falcon.HTTP_400
