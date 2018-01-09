@@ -4,7 +4,7 @@ import jwt
 
 from .models import User
 
-SECRET_KEY = os.getenv('PERCEPT_SECRET', 'secret')
+SECRET_KEY = os.getenv('BEEHAIV_SECRET', 'secret')
 
 
 def verify_user(username, password):
