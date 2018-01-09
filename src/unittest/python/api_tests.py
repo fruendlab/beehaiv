@@ -2,6 +2,7 @@ from unittest import TestCase
 import hug
 from falcon import HTTP_200, HTTP_400, HTTP_404, HTTP_409, HTTP_401
 from pony import orm
+from base64 import b64encode
 
 from beehaiv import api
 from beehaiv.crypto import create_token
@@ -59,11 +60,17 @@ class TestExperimentsEndpoint(TestCase):
         return [trial.id for trial in trials]
 
     @orm.db_session()
-    def get_header(self, userid=None):
+    def get_header(self, userid=None, basic=False):
         if userid is None:
             userid = self.adminid
         user = api.User[userid]
-        return {'Authorization': create_token(user.username)}
+        if basic:
+            basic_token = b64encode(
+                '{}:{}'.format(user.username, user.password).encode('utf8')
+            ).decode('utf8')
+            return {'Authorization': 'Basic {}'.format(basic_token)}
+        else:
+            return {'Authorization': create_token(user.username)}
 
     def test_get_experiments_for_empty_experiments(self):
         resp = hug.test.get(api, '/experiments/', headers=self.get_header())
@@ -175,7 +182,7 @@ class TestExperimentsEndpoint(TestCase):
                               'response': 'ANY_RESPONSE',
                               'stimulus': 'ANY_STIMULUS',
                               'condition': 'ANY_CONDITION'},
-                             headers=self.get_header(userid))
+                             headers=self.get_header(userid, basic=True))
         self.assertEqual(resp.status, HTTP_200)
         self.assertEqual(set(resp.data.keys()), self.expected_trial_keys)
 
@@ -187,7 +194,7 @@ class TestExperimentsEndpoint(TestCase):
                               'response': 'ANY_RESPONSE',
                               'stimulus': 'ANY_STIMULUS',
                               'condition': 'ANY_CONDITION'},
-                             headers=self.get_header(userid))
+                             headers=self.get_header(userid, basic=True))
         self.assertEqual(resp.status, HTTP_404)
 
     def test_post_trial_with_incomplete_specs(self):
@@ -196,7 +203,7 @@ class TestExperimentsEndpoint(TestCase):
                              '/experiments/{}/trials'.format(expid),
                              {'observer': userid,
                               'response': 'ANY_RESPONSE'},
-                             headers=self.get_header(userid))
+                             headers=self.get_header(userid, basic=True))
         self.assertEqual(resp.status, HTTP_400)
 
     def test_get_trial_with_id(self):
@@ -316,8 +323,12 @@ class TestFlexibleExperimentSetup(TestCase):
     def get_header(self, userid=None):
         if userid is None:
             userid = self.adminid
+
         user = api.User[userid]
-        return {'Authorization': create_token(user.username)}
+        basic_token = b64encode(
+            '{}:{}'.format(user.username, user.password).encode('utf8')
+        ).decode('utf8')
+        return {'Authorization': 'Basic {}'.format(basic_token)}
 
     def test_post_trial_with_valid_layout(self):
         resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp1id),

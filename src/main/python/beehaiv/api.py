@@ -90,7 +90,7 @@ def get_all_experiments_trials(exp_id: int, response):
         return [trial.summary() for trial in expr.trials]
 
 
-@token_auth.post('/experiments/{exp_id}/trials/')
+@basic_auth.post('/experiments/{exp_id}/trials/')
 def post_experiments_trials(exp_id: int, body, response):
     with orm.db_session():
         try:
