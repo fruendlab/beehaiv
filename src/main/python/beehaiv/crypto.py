@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 from base64 import b64encode
 from pony import orm
 import jwt
@@ -29,7 +30,9 @@ def verify_user(username, password):
 @orm.db_session()
 def create_token(username):
     user = User.get(username=username)
-    return jwt.encode({'username': username, 'isadmin': user.isadmin},
+    return jwt.encode({'username': username,
+                       'isadmin': user.isadmin,
+                       'exp': datetime.utcnow() + timedelta(minutes=5)},
                       SECRET_KEY,
                       algorithm='HS256')
 
@@ -39,12 +42,16 @@ def verify_token(token):
         return jwt.decode(token, SECRET_KEY, algorithm='HS256')['username']
     except jwt.DecodeError:
         return False
+    except jwt.ExpiredSignatureError:
+        return False
 
 
 def verify_admin(token):
     try:
         info = jwt.decode(token, SECRET_KEY, algorithm='HS256')
     except jwt.DecodeError:
+        return False
+    except jwt.ExpiredSignatureError:
         return False
     if info['isadmin']:
         return info['username']
