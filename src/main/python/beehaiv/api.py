@@ -91,7 +91,10 @@ def get_all_experiments_trials(exp_id: int, response):
 
 
 @basic_auth.post('/experiments/{exp_id}/trials/')
-def post_experiments_trials(exp_id: int, body, response):
+def post_experiments_trials(exp_id: int,
+                            body,
+                            response,
+                            user: hug.directives.user):
     with orm.db_session():
         try:
             expr = Experiment[exp_id]
@@ -100,7 +103,7 @@ def post_experiments_trials(exp_id: int, body, response):
             return
 
         try:
-            observer = User[body.pop('observer')]
+            observer = User.get(username=user)
             trial_data = ','.join([str(body.pop(key))
                                    for key in expr.variable_names.split(',')])
         except KeyError:

@@ -178,8 +178,7 @@ class TestExperimentsEndpoint(TestCase):
         userid, expid = self.create_experiment_with_user()
         resp = hug.test.post(api,
                              '/experiments/{}/trials'.format(expid),
-                             {'observer': userid,
-                              'response': 'ANY_RESPONSE',
+                             {'response': 'ANY_RESPONSE',
                               'stimulus': 'ANY_STIMULUS',
                               'condition': 'ANY_CONDITION'},
                              headers=self.get_header(userid, basic=True))
@@ -190,8 +189,7 @@ class TestExperimentsEndpoint(TestCase):
         userid = self.create_user()
         resp = hug.test.post(api,
                              '/experiments/1/trials',
-                             {'observer': userid,
-                              'response': 'ANY_RESPONSE',
+                             {'response': 'ANY_RESPONSE',
                               'stimulus': 'ANY_STIMULUS',
                               'condition': 'ANY_CONDITION'},
                              headers=self.get_header(userid, basic=True))
@@ -201,8 +199,7 @@ class TestExperimentsEndpoint(TestCase):
         userid, expid = self.create_experiment_with_user()
         resp = hug.test.post(api,
                              '/experiments/{}/trials'.format(expid),
-                             {'observer': userid,
-                              'response': 'ANY_RESPONSE'},
+                             {'response': 'ANY_RESPONSE'},
                              headers=self.get_header(userid, basic=True))
         self.assertEqual(resp.status, HTTP_400)
 
@@ -332,8 +329,7 @@ class TestFlexibleExperimentSetup(TestCase):
 
     def test_post_trial_with_valid_layout(self):
         resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp1id),
-                             {'observer': self.userid,
-                              'A': 'a',
+                             {'A': 'a',
                               'B': 'b',
                               'C': 'c'},
                              headers=self.get_header())
@@ -341,8 +337,7 @@ class TestFlexibleExperimentSetup(TestCase):
 
     def test_post_trial_with_layout_of_other_exp(self):
         resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp2id),
-                             {'observer': self.userid,
-                              'A': 'a',
+                             {'A': 'a',
                               'B': 'b',
                               'C': 'c'},
                              headers=self.get_header())
@@ -350,8 +345,7 @@ class TestFlexibleExperimentSetup(TestCase):
 
     def test_post_trial_with_variables_from_other_exp(self):
         resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp1id),
-                             {'observer': self.userid,
-                              'A': 'a',
+                             {'A': 'a',
                               'B': 'b',
                               'C': 'c',
                               'E': 'e'},
@@ -360,8 +354,7 @@ class TestFlexibleExperimentSetup(TestCase):
 
     def test_post_trial_with_incomplete_specs(self):
         resp = hug.test.post(api, '/experiments/{}/trials'.format(self.exp1id),
-                             {'observer': self.userid,
-                              'A': 'a',
+                             {'A': 'a',
                               'B': 'b',
                               },
                              headers=self.get_header())
