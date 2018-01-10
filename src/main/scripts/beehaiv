@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
 Usage:
+    beehaiv [options] token <USERNAME>:<PASSWORD>
     beehaiv [options] register <NAME> [<VARIABLE> ...]
 
 Options:
@@ -14,6 +15,8 @@ Options:
 import os
 from docopt import docopt
 import requests
+
+from beehaiv.crypto import get_basic_token
 
 URL = 'http://127.0.0.1:8000'
 
@@ -33,7 +36,21 @@ def register(args):
         print(r.status_code, r.reason)
 
 
+def token(args):
+    url = args['--url'] or URL
+    basic_token = get_basic_token(*args['<USERNAME>:<PASSWORD>'].split(':'))
+    r = requests.get(url + '/token/',
+                     headers={'AUTHORIZATION': basic_token})
+    if r.ok:
+        print(r.json())
+    else:
+        print(r.status_code, r.reason)
+
+
 if __name__ == '__main__':
     args = docopt(__doc__)
 
-    register(args)
+    if args['token']:
+        token(args)
+    elif args['register']:
+        register(args)

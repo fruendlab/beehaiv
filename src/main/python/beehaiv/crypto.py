@@ -9,7 +9,7 @@ SECRET_KEY = os.getenv('BEEHAIV_SECRET', 'secret')
 
 
 def get_basic_token(username, password):
-    return b64encode(
+    return 'Basic ' + b64encode(
         '{}:{}'.format(username, password).encode('utf8')
     ).decode('utf8')
 
