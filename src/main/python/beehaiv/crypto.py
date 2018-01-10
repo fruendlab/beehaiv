@@ -1,10 +1,17 @@
 import os
+from base64 import b64encode
 from pony import orm
 import jwt
 
 from .models import User
 
 SECRET_KEY = os.getenv('BEEHAIV_SECRET', 'secret')
+
+
+def get_basic_token(username, password):
+    return b64encode(
+        '{}:{}'.format(username, password).encode('utf8')
+    ).decode('utf8')
 
 
 def verify_user(username, password):
