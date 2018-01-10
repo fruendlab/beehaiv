@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+"""
+Usage:
+    beehaiv [options] register <NAME> [<VARIABLE> ...]
+
+Options:
+    -t TOKEN, --token=TOKEN
+        Explicitly give the access token. If none is given, get it from the
+        environment variable BEEHAIV_TOKEN
+    -u URL, --url=URL
+        URL of the beehaiv server. Default: localhost:8000
+"""
+
+import os
+from docopt import docopt
+import requests
+
+URL = 'http://127.0.0.1:8000'
+
+
+def register(args):
+    url = args['--url'] or URL
+    token = args['--token'] or os.environ['BEEHAIV_TOKEN']
+    r = requests.post(url + '/experiments/',
+                      headers={'Authorization': token},
+                      data={
+                         'name': args['<NAME>'],
+                         'variable_names': ','.join(args['<VARIABLE>']),
+                      })
+    if r.ok:
+        print(r.json())
+    else:
+        print(r.status_code, r.reason)
+
+
+if __name__ == '__main__':
+    args = docopt(__doc__)
+
+    register(args)
