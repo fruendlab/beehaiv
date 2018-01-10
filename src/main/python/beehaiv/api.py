@@ -50,15 +50,16 @@ def get_experiments(exp_id: int, response):
 
 
 @admin_auth.post('/experiments/')
-def post_experiments(body, response):
-    if not ('owner' in body and 'name' in body):
-        response.status = falcon.HTTP_400
-        return
+def post_experiments(body, response, user: hug.directives.user):
     with orm.db_session():
-        owner = User[body['owner']]
-        expr = Experiment(owner=owner,
-                          name=body['name'],
-                          variable_names=body['variable_names'])
+        owner = User.get(username=user)
+        try:
+            expr = Experiment(owner=owner,
+                              name=body['name'],
+                              variable_names=body['variable_names'])
+        except KeyError:
+            response.status = falcon.HTTP_400
+            return
     with orm.db_session():
         return expr.summary()
 

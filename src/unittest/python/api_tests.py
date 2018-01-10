@@ -88,10 +88,9 @@ class TestExperimentsEndpoint(TestCase):
         self.assertSetEqual(set(first_expr.keys()), self.expected_expr_keys)
 
     def test_post_experiments_creates_and_returns(self):
-        userid = self.create_user()
         resp = hug.test.post(api,
                              '/experiments/',
-                             {'owner': userid, 'name': 'ANY_NAME',
+                             {'name': 'ANY_NAME',
                               'variable_names': 'response,stimulus,condition'},
                              headers=self.get_header())
 
@@ -102,7 +101,7 @@ class TestExperimentsEndpoint(TestCase):
     def test_post_experiments_fails_if_missing_arguments(self):
         resp = hug.test.post(api,
                              '/experiments/',
-                             {'owner': 1},
+                             {},
                              headers=self.get_header())
         self.assertEqual(resp.status, HTTP_400)
 
