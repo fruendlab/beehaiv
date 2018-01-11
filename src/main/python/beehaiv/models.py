@@ -8,6 +8,7 @@ class Experiment(db.Entity):
     name = orm.Required(str)
     trials = orm.Set('Trial')
     variable_names = orm.Required(str)
+    _states = orm.Set('State')
 
     def summary(self):
         return {'id': self.id,
@@ -39,9 +40,16 @@ class User(db.Entity):
     trials = orm.Set(Trial)
     experiments = orm.Set(Experiment)
     isadmin = orm.Required(bool, default=False)
+    _states = orm.Set('State')
 
     def safe_json(self):
         return {'id': self.id,
                 'username': self.username,
                 'trial_count': len(self.trials),
                 'experiment_count': len(self.experiments)}
+
+
+class State(db.Entity):
+    experiment = orm.Required(Experiment)
+    observer = orm.Required(User)
+    state_json = orm.Required(str)

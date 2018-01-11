@@ -3,6 +3,7 @@
 Usage:
     beehaiv [options] token <USERNAME>:<PASSWORD>
     beehaiv [options] register <NAME> [<VARIABLE> ...]
+    beehaiv [options] trials <ID>
 
 Options:
     -t TOKEN, --token=TOKEN

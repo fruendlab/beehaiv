@@ -1,8 +1,9 @@
 import hug
 from pony import orm
+import json
 import falcon
 
-from .models import db, Experiment, Trial, User
+from .models import db, Experiment, Trial, User, State
 from . import crypto
 
 basic_auth = hug.http(requires=hug.authentication.basic(crypto.verify_user))
@@ -81,14 +82,15 @@ def put_experiments(exp_id: int, body, response):
 
 # End point /experiments/<id>/trials/
 @admin_auth.get('/experiments/{exp_id}/trials/', versions=1)
-def get_all_experiments_trials(exp_id: int, response):
+def get_all_experiments_trials(exp_id: int, response, request):
     with orm.db_session():
         try:
             expr = Experiment[exp_id]
         except orm.ObjectNotFound:
             response.status = falcon.HTTP_404
             return
-        return [trial.summary() for trial in expr.trials]
+        trials = (trial.summary() for trial in expr.trials)
+        return json.dumps(list(trials))
 
 
 @basic_auth.post('/experiments/{exp_id}/trials/', versions=1)
@@ -134,6 +136,50 @@ def get_experiments_trials(exp_id: int, trial_id: int, response):
             return trial.summary()
         else:
             response.status = falcon.HTTP_404
+
+
+@basic_auth.get('/experiments/{exp_id}/state/', versions=1)
+def get_state(exp_id: int, response, user: hug.directives.user):
+    with orm.db_session():
+        try:
+            observer = User.get(username=user)
+            experiment = Experiment[exp_id]
+            state = State.get(observer=observer, experiment=experiment)
+            if state:
+                return state.state_json
+            else:
+                raise falcon.HTTPNotFound()
+        except orm.ObjectNotFound:
+            response.status = falcon.HTTP_404
+            return
+
+
+@basic_auth.post('/experiments/{exp_id}/state/', versions=1)
+def post_state(exp_id: int, body, response, user: hug.directives.user):
+    with orm.db_session():
+        observer = User.get(username=user)
+        experiment = Experiment[exp_id]
+        state = State.get(observer=observer, experiment=experiment)
+        if state:
+            raise falcon.HTTPBadRequest()
+        if body is None or 'state' not in body:
+            raise falcon.HTTPBadRequest()
+        state = State(observer=observer,
+                      experiment=experiment,
+                      state_json=body['state'])
+        return json.dumps(state.state_json)
+
+
+@basic_auth.put('/experiments/{exp_id}/state/', versions=1)
+def put_state(exp_id: int, body, response, user: hug.directives.user):
+    with orm.db_session():
+        observer = User.get(username=user)
+        experiment = Experiment[exp_id]
+        state = State.get(observer=observer, experiment=experiment)
+        if state is None:
+            raise falcon.HTTPBadRequest()
+        state.state_json = body['state']
+        return json.dumps(state.state_json)
 
 
 # End point /users/

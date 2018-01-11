@@ -3,9 +3,10 @@ import hug
 from falcon import HTTP_200, HTTP_400, HTTP_404, HTTP_409, HTTP_401
 from pony import orm
 from base64 import b64encode
+import json
 
 from beehaiv import api
-from beehaiv.crypto import create_token
+from beehaiv.crypto import create_token, get_basic_token
 
 api.db.bind(provider='sqlite', filename=':memory:')
 api.db.generate_mapping(create_tables=True)
@@ -156,7 +157,7 @@ class TestExperimentsEndpoint(TestCase):
                             headers=self.get_header())
 
         self.assertEqual(resp.status, HTTP_200)
-        self.assertSequenceEqual(resp.data, [])
+        self.assertSequenceEqual(json.loads(resp.data), [])
 
     def test_get_all_trials_for_exp(self):
         userid, expid = self.create_experiment_with_user()
@@ -167,7 +168,7 @@ class TestExperimentsEndpoint(TestCase):
                             headers=self.get_header())
 
         self.assertEqual(resp.status, HTTP_200)
-        self.assertEqual(len(resp.data), 2)
+        self.assertEqual(len(json.loads(resp.data)), 2)
 
     def test_get_all_trials_from_nonexisting_exp(self):
         resp = hug.test.get(api,
@@ -437,3 +438,85 @@ class TestAutentication(TestCase):
         with orm.db_session():
             user = api.User[self.user_id]
             self.assertEqual(user.password, 'ANY_PASSWORD')
+
+
+class TestState(TestCase):
+
+    def setUp(self):
+        api.db.drop_all_tables(with_all_data=True)
+        api.db.create_tables()
+
+        with orm.db_session():
+            admin = api.User(username='ADMIN',
+                             password='ANY_PASSWORD',
+                             isadmin=True)
+            expr = api.Experiment(owner=admin,
+                                  name='ANY_NAME',
+                                  variable_names='v1,v2')
+            other_expr = api.Experiment(owner=admin,
+                                        name='ANY_NAME',
+                                        variable_names='v1,v2')
+            orm.commit()
+            api.State(observer=admin,
+                      experiment=expr,
+                      state_json='ANY_STATE')
+            orm.commit()
+            self.admin_id = admin.id
+            self.expr_id = expr.id
+            self.other_id = other_expr.id
+            self.basic_token = get_basic_token('ADMIN', 'ANY_PASSWORD')
+
+    def test_get_state_happy_path(self):
+        resp = hug.test.get(api,
+                            '/v1/experiments/{}/state/'.format(self.expr_id),
+                            headers={'Authorization': self.basic_token})
+        self.assertEqual(resp.status, HTTP_200)
+        self.assertEqual(resp.data, 'ANY_STATE')
+
+    def test_get_state_no_experiment(self):
+        resp = hug.test.get(api,
+                            '/v1/experiments/500/state/',
+                            headers={'Authorization': self.basic_token})
+        self.assertEqual(resp.status, HTTP_404)
+
+    def test_get_state_no_state(self):
+        resp = hug.test.get(api,
+                            '/v1/experiments/{}/state/'.format(self.other_id),
+                            headers={'Authorization': self.basic_token})
+        self.assertEqual(resp.status, HTTP_404)
+
+    def test_post_state_happy_path(self):
+        resp = hug.test.post(api,
+                             '/v1/experiments/{}/state/'.format(self.other_id),
+                             {'state': 'ANY_STATE'},
+                             headers={'Authorization': self.basic_token})
+        self.assertEqual(resp.status, HTTP_200)
+        self.assertEqual(json.loads(resp.data), 'ANY_STATE')
+
+    def test_post_state_exists(self):
+        resp = hug.test.post(api,
+                             '/v1/experiments/{}/state/'.format(self.expr_id),
+                             {'state': 'ANY_STATE'},
+                             headers={'Authorization': self.basic_token})
+        self.assertEqual(resp.status, HTTP_400)
+
+    def test_post_state_with_no_state(self):
+        resp = hug.test.post(api,
+                             '/v1/experiments/{}/state/'.format(self.other_id),
+                             headers={'Authorization': self.basic_token})
+        self.assertEqual(resp.status, HTTP_400)
+
+    def test_put_state_happy_path(self):
+        resp = hug.test.put(api,
+                            '/v1/experiments/{}/state/'.format(self.expr_id),
+                            {'state': 'OTHER_STATE'},
+                            headers={'Authorization': self.basic_token})
+        self.assertEqual(resp.status, HTTP_200)
+        self.assertEqual(json.loads(resp.data), 'OTHER_STATE')
+
+    def test_put_state_no_state(self):
+        resp = hug.test.put(api,
+                            '/v1/experiments/{}/state/'.format(self.other_id),
+                            {'state': 'ANY_STATE'},
+                            headers={'Authorization': self.basic_token})
+        self.assertEqual(resp.status, HTTP_400)
