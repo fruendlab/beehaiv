@@ -459,7 +459,7 @@ class TestState(TestCase):
             orm.commit()
             api.State(observer=admin,
                       experiment=expr,
-                      state_json='ANY_STATE')
+                      state_json='"ANY_STATE"')
             orm.commit()
             self.admin_id = admin.id
             self.expr_id = expr.id
@@ -491,7 +491,7 @@ class TestState(TestCase):
                              {'state': 'ANY_STATE'},
                              headers={'Authorization': self.basic_token})
         self.assertEqual(resp.status, HTTP_200)
-        self.assertEqual(json.loads(resp.data), 'ANY_STATE')
+        self.assertEqual(resp.data, 'ANY_STATE')
 
     def test_post_state_exists(self):
         resp = hug.test.post(api,
@@ -512,7 +512,7 @@ class TestState(TestCase):
                             {'state': 'OTHER_STATE'},
                             headers={'Authorization': self.basic_token})
         self.assertEqual(resp.status, HTTP_200)
-        self.assertEqual(json.loads(resp.data), 'OTHER_STATE')
+        self.assertEqual(resp.data, 'OTHER_STATE')
 
     def test_put_state_no_state(self):
         resp = hug.test.put(api,

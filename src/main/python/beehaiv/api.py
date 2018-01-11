@@ -26,7 +26,8 @@ def handle_exceptions(exception):
 @hug.response_middleware()
 def CORS(request, response, resource):
     response.set_header('Access-Control-Allow-Origin', '*')
-    response.set_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    response.set_header('Access-Control-Allow-Methods',
+                        'GET, POST, PUT, OPTIONS')
     response.set_header(
         'Access-Control-Allow-Headers',
         'Authorization,Keep-Alive,User-Agent,'
@@ -134,7 +135,7 @@ def get_state(exp_id: int, response, user: hug.directives.user):
         experiment = Experiment[exp_id]
         state = State.get(observer=observer, experiment=experiment)
         if state:
-            return state.state_json
+            return json.loads(state.state_json)
         else:
             raise falcon.HTTPNotFound()
 
@@ -151,8 +152,8 @@ def post_state(exp_id: int, body, response, user: hug.directives.user):
             raise falcon.HTTPBadRequest()
         state = State(observer=observer,
                       experiment=experiment,
-                      state_json=body['state'])
-        return json.dumps(state.state_json)
+                      state_json=json.dumps(body['state']))
+        return json.loads(state.state_json)
 
 
 @basic_auth.put('/experiments/{exp_id}/state/', versions=1)
@@ -163,8 +164,8 @@ def put_state(exp_id: int, body, response, user: hug.directives.user):
         state = State.get(observer=observer, experiment=experiment)
         if state is None:
             raise falcon.HTTPBadRequest()
-        state.state_json = body['state']
-        return json.dumps(state.state_json)
+        state.state_json = json.dumps(body['state'])
+        return json.loads(state.state_json)
 
 
 # End point /users/
