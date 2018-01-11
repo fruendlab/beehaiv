@@ -24,7 +24,7 @@ URL = 'http://127.0.0.1:8000'
 def register(args):
     url = args['--url'] or URL
     token = args['--token'] or os.environ['BEEHAIV_TOKEN']
-    r = requests.post(url + '/experiments/',
+    r = requests.post(url + '/v1/experiments/',
                       headers={'Authorization': token},
                       data={
                          'name': args['<NAME>'],
@@ -39,7 +39,7 @@ def register(args):
 def token(args):
     url = args['--url'] or URL
     basic_token = get_basic_token(*args['<USERNAME>:<PASSWORD>'].split(':'))
-    r = requests.get(url + '/token/',
+    r = requests.get(url + '/v1/token/',
                      headers={'AUTHORIZATION': basic_token})
     if r.ok:
         print(r.json())
