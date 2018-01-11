@@ -39,13 +39,30 @@ def register(args):
 
 def token(args):
     url = args['--url'] or URL
-    basic_token = get_basic_token(*args['<USERNAME>:<PASSWORD>'].split(':'))
+    try:
+        token_ = get_token(*args['<USERNAME>:<PASSWORD>'].split(':'), url)
+    except ValueError as e:
+        print(e.message)
+    print(token_)
+
+
+def trials(args):
+    url = args['--url'] or URL
+    id_ = args['<ID>']
+    token = args['--token'] or os.environ['BEEHAIV_TOKEN']
+    r = requests.get(url + '/v1/experiments/{}/trials/?username=me'.format(id_),
+                     headers={'Authorization': token})
+    print(r.json())
+
+
+def get_token(username, password, url):
+    basic_token = get_basic_token(username, password)
     r = requests.get(url + '/v1/token/',
                      headers={'AUTHORIZATION': basic_token})
     if r.ok:
-        print(r.json())
+        return r.json()
     else:
-        print(r.status_code, r.reason)
+        raise ValueError('[{}] {}'.format(r.status_code, r.reason))
 
 
 if __name__ == '__main__':
@@ -55,3 +72,5 @@ if __name__ == '__main__':
         token(args)
     elif args['register']:
         register(args)
+    elif args['trials']:
+        trials(args)
