@@ -32,7 +32,7 @@ def CORS(request, response, resource):
 
 
 # End point /experiments/
-@admin_auth.get('/experiments/')
+@admin_auth.get('/experiments/', versions=1)
 def get_all_experiments():
     with orm.db_session():
         owners_experiments = orm.select(e for e in Experiment)
@@ -40,7 +40,7 @@ def get_all_experiments():
                 for expr in owners_experiments]
 
 
-@admin_auth.get('/experiments/{exp_id}/')
+@admin_auth.get('/experiments/{exp_id}/', versions=1)
 def get_experiments(exp_id: int, response):
     with orm.db_session():
         try:
@@ -49,7 +49,7 @@ def get_experiments(exp_id: int, response):
             response.status = falcon.HTTP_404
 
 
-@admin_auth.post('/experiments/')
+@admin_auth.post('/experiments/', versions=1)
 def post_experiments(body, response, user: hug.directives.user):
     with orm.db_session():
         owner = User.get(username=user)
@@ -64,7 +64,7 @@ def post_experiments(body, response, user: hug.directives.user):
         return expr.summary()
 
 
-@admin_auth.put('/experiments/{exp_id}/')
+@admin_auth.put('/experiments/{exp_id}/', versions=1)
 def put_experiments(exp_id: int, body, response):
     with orm.db_session():
         try:
@@ -80,7 +80,7 @@ def put_experiments(exp_id: int, body, response):
 
 
 # End point /experiments/<id>/trials/
-@admin_auth.get('/experiments/{exp_id}/trials/')
+@admin_auth.get('/experiments/{exp_id}/trials/', versions=1)
 def get_all_experiments_trials(exp_id: int, response):
     with orm.db_session():
         try:
@@ -91,7 +91,7 @@ def get_all_experiments_trials(exp_id: int, response):
         return [trial.summary() for trial in expr.trials]
 
 
-@basic_auth.post('/experiments/{exp_id}/trials/')
+@basic_auth.post('/experiments/{exp_id}/trials/', versions=1)
 def post_experiments_trials(exp_id: int,
                             body,
                             response,
@@ -121,7 +121,7 @@ def post_experiments_trials(exp_id: int,
         return trial.summary()
 
 
-@admin_auth.get('/experiments/{exp_id}/trials/{trial_id}/')
+@admin_auth.get('/experiments/{exp_id}/trials/{trial_id}/', versions=1)
 def get_experiments_trials(exp_id: int, trial_id: int, response):
     with orm.db_session():
         try:
@@ -137,7 +137,7 @@ def get_experiments_trials(exp_id: int, trial_id: int, response):
 
 
 # End point /users/
-@hug.post('/users/')
+@hug.post('/users/', versions=1)
 def post_users(body, response):
     try:
         with orm.db_session():
@@ -148,13 +148,13 @@ def post_users(body, response):
         return
 
 
-@admin_auth.get('/users/')
+@admin_auth.get('/users/', versions=1)
 def get_all_users():
     with orm.db_session():
         return [user.safe_json() for user in orm.select(user for user in User)]
 
 
-@token_auth.put('/users/{user_id}/')
+@token_auth.put('/users/{user_id}/', versions=1)
 def put_users(user_id: int, body, response, user: hug.directives.user):
     with orm.db_session():
         try:
@@ -164,7 +164,7 @@ def put_users(user_id: int, body, response, user: hug.directives.user):
             response.status = falcon.HTTP_404
             return
 
-        if not check(user, user_):
+        if not check_admin_privileges(user, user_):
             response.status = falcon.HTTP_401
             return
 
@@ -181,7 +181,7 @@ def put_users(user_id: int, body, response, user: hug.directives.user):
         return user_.safe_json()
 
 
-@token_auth.get('/users/{user_id}/')
+@token_auth.get('/users/{user_id}/', versions=1)
 def get_users(user_id: int, response, user: hug.directives.user):
     with orm.db_session():
         try:
@@ -189,18 +189,18 @@ def get_users(user_id: int, response, user: hug.directives.user):
         except orm.ObjectNotFound:
             response.status = falcon.HTTP_404
             return
-        if check(user, user_):
+        if check_admin_privileges(user, user_):
             return user_.safe_json()
         response.status = falcon.HTTP_401
 
 
-@basic_auth.get('/token/')
+@basic_auth.get('/token/', versions=1)
 def get_token(user: hug.directives.user):
     return crypto.create_token(user)
 
 
 @orm.db_session()
-def check(username, user):
+def check_admin_privileges(username, user):
     try:
         active_user = User.get(username=username)
     except orm.ObjectNotFound:
