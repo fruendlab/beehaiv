@@ -11,6 +11,14 @@ token_auth = hug.http(requires=hug.authentication.token(crypto.verify_token))
 admin_auth = hug.http(requires=hug.authentication.token(crypto.verify_admin))
 
 
+@hug.exception()
+def handle_exceptions(exception):
+    if isinstance(exception, orm.ObjectNotFound):
+        raise falcon.HTTPNotFound()
+    else:
+        raise exception
+
+
 @hug.response_middleware()
 def CORS(request, response, resource):
     response.set_header('Access-Control-Allow-Origin', '*')
