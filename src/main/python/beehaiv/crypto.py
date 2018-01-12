@@ -27,9 +27,9 @@ def verify_user(username, password):
 
 
 @orm.db_session()
-def create_token(username):
-    user = User.get(username=username)
-    return jwt.encode({'username': username,
+def create_token(user_id):
+    user = User[user_id]
+    return jwt.encode({'username': user.username,
                        'isadmin': user.isadmin,
                        'id': user.id,
                        'exp': datetime.utcnow() + timedelta(minutes=5)},

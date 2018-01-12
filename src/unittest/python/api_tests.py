@@ -64,14 +64,14 @@ class TestExperimentsEndpoint(TestCase):
     def get_header(self, userid=None, basic=False):
         if userid is None:
             userid = self.adminid
-        user = api.User[userid]
         if basic:
+            user = api.User[userid]
             basic_token = b64encode(
                 '{}:{}'.format(user.username, user.password).encode('utf8')
             ).decode('utf8')
             return {'Authorization': 'Basic {}'.format(basic_token)}
         else:
-            return {'Authorization': create_token(user.username)}
+            return {'Authorization': create_token(userid)}
 
     def test_get_experiments_for_empty_experiments(self):
         resp = hug.test.get(api, '/v1/experiments/', headers=self.get_header())
@@ -391,8 +391,7 @@ class TestAutentication(TestCase):
 
     @orm.db_session()
     def get_header(self, userid):
-        user = api.User[userid]
-        return {'Authorization': create_token(user.username)}
+        return {'Authorization': create_token(userid)}
 
     def test_user_can_change_own_username(self):
         resp = hug.test.put(api,

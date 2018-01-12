@@ -213,4 +213,4 @@ def get_users(user_id: int, response, user: hug.directives.user):
 
 @basic_auth.get('/token/', versions=1)
 def get_token(user: hug.directives.user):
-    return crypto.create_token(user.username)
+    return crypto.create_token(user['id'])
