@@ -46,6 +46,7 @@ def CORS(request, response, resource):
 
 
 # End point /experiments/
+
 @admin_auth.get('/experiments/', versions=1)
 def get_all_experiments():
     with orm.db_session():
@@ -54,16 +55,10 @@ def get_all_experiments():
                 for expr in owners_experiments]
 
 
-@admin_auth.get('/experiments/{exp_id}/', versions=1)
-def get_experiments(exp_id: int, response):
-    with orm.db_session():
-        return Experiment[exp_id].summary()
-
-
 @admin_auth.post('/experiments/', versions=1)
 def post_experiments(body, response, user: hug.directives.user):
     with orm.db_session():
-        owner = User.get(username=user)
+        owner = User[user['id']]
         if body is None or 'name' not in body or 'variable_names' not in body:
             raise falcon.HTTPBadRequest()
         expr = Experiment(owner=owner,
@@ -71,6 +66,12 @@ def post_experiments(body, response, user: hug.directives.user):
                           variable_names=body['variable_names'])
     with orm.db_session():
         return expr.summary()
+
+
+@admin_auth.get('/experiments/{exp_id}/', versions=1)
+def get_experiments(exp_id: int, response):
+    with orm.db_session():
+        return Experiment[exp_id].summary()
 
 
 @admin_auth.put('/experiments/{exp_id}/', versions=1)
@@ -104,7 +105,7 @@ def post_experiments_trials(exp_id: int,
     with orm.db_session():
         expr = Experiment[exp_id]
 
-        observer = User.get(username=user)
+        observer = User[user['id']]
         trial_data = ','.join([str(body.pop(key))
                                for key in expr.variable_names.split(',')])
 
@@ -131,7 +132,7 @@ def get_experiments_trials(exp_id: int, trial_id: int, response):
 @basic_auth.get('/experiments/{exp_id}/state/', versions=1)
 def get_state(exp_id: int, response, user: hug.directives.user):
     with orm.db_session():
-        observer = User.get(username=user)
+        observer = User[user['id']]
         experiment = Experiment[exp_id]
         state = State.get(observer=observer, experiment=experiment)
         if state:
@@ -143,7 +144,7 @@ def get_state(exp_id: int, response, user: hug.directives.user):
 @basic_auth.post('/experiments/{exp_id}/state/', versions=1)
 def post_state(exp_id: int, body, response, user: hug.directives.user):
     with orm.db_session():
-        observer = User.get(username=user)
+        observer = User[user['id']]
         experiment = Experiment[exp_id]
         state = State.get(observer=observer, experiment=experiment)
         if state:
@@ -159,7 +160,7 @@ def post_state(exp_id: int, body, response, user: hug.directives.user):
 @basic_auth.put('/experiments/{exp_id}/state/', versions=1)
 def put_state(exp_id: int, body, response, user: hug.directives.user):
     with orm.db_session():
-        observer = User.get(username=user)
+        observer = User[user['id']]
         experiment = Experiment[exp_id]
         state = State.get(observer=observer, experiment=experiment)
         if state is None:
@@ -185,16 +186,15 @@ def get_all_users():
 @token_auth.put('/users/{user_id}/', versions=1)
 def put_users(user_id: int, body, response, user: hug.directives.user):
     with orm.db_session():
-        active_user = User.get(username=user)
         user_ = User[user_id]
 
-        if not check_admin_privileges(user, user_):
+        if not (user['isadmin'] or user['username'] == user_.username):
             raise falcon.HTTPUnauthorized()
 
         if not set(body.keys()).issubset({'username', 'password', 'isadmin'}):
             raise falcon.HTTPBadRequest()
 
-        if 'isadmin' in body and not active_user.isadmin:
+        if 'isadmin' in body and not user['isadmin']:
             raise falcon.HTTPUnauthorized()
 
         for key, value in body.items():
@@ -206,23 +206,11 @@ def put_users(user_id: int, body, response, user: hug.directives.user):
 def get_users(user_id: int, response, user: hug.directives.user):
     with orm.db_session():
         user_ = User[user_id]
-        if check_admin_privileges(user, user_):
-            return user_.safe_json()
-        raise falcon.HTTPUnauthorized()
+        if not (user['isadmin'] or user['username'] == user_.username):
+            raise falcon.HTTPUnauthorized()
+        return user_.safe_json()
 
 
 @basic_auth.get('/token/', versions=1)
 def get_token(user: hug.directives.user):
-    return crypto.create_token(user)
-
-
-@orm.db_session()
-def check_admin_privileges(username, user):
-    try:
-        active_user = User.get(username=username)
-    except orm.ObjectNotFound:
-        return False
-    if username == user.username or active_user.isadmin:
-        return True
-    else:
-        return False
+    return crypto.create_token(user.username)

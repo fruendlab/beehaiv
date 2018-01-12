@@ -20,21 +20,14 @@ class TestVerifyUser(TestCase):
         self.mock_user.get.return_value = mock_user
 
         auth = crypto.verify_user('ANY_USERNAME', 'ANY_PASSWORD')
-        self.assertEqual(auth, 'ANY_USERNAME')
+        self.assertEqual(auth['username'], 'ANY_USERNAME')
+        self.assertSetEqual(set(auth.keys()), {'username', 'id', 'isadmin'})
 
     def test_user_exists_but_has_incorrect_password(self):
         mock_user = mock.Mock()
         mock_user.password = 'OTHER_PASSWORD'
         mock_user.username = 'ANY_USERNAME'
         self.mock_user.get.return_value = mock_user
-
-        auth = crypto.verify_user('ANY_USERNAME', 'ANY_PASSWORD')
-        self.assertFalse(auth)
-
-    def test_user_does_not_exist(self):
-        fake_entity = mock.Mock()
-        fake_entity.__name__ = 'fake_entity'
-        self.mock_user.get.side_effect = orm.ObjectNotFound(fake_entity)
 
         auth = crypto.verify_user('ANY_USERNAME', 'ANY_PASSWORD')
         self.assertFalse(auth)
@@ -51,7 +44,7 @@ class TestVerifyToken(TestCase):
     def test_token_decodes_sucessfully(self):
         self.mock_decode.return_value = {'username': 'ANY_USERNAME'}
         username = crypto.verify_token('ANY_TOKEN')
-        self.assertEqual(username, 'ANY_USERNAME')
+        self.assertDictEqual(username, {'username': 'ANY_USERNAME'})
 
     def test_token_is_invalid(self):
         self.mock_decode.side_effect = jwt.DecodeError
@@ -82,4 +75,4 @@ class TestVerifyAdmin(TestCase):
         self.mock_decode.return_value = {'username': 'ANY_USERNAME',
                                          'isadmin': True}
         auth = crypto.verify_admin('ANY_TOKEN')
-        self.assertEqual(auth, 'ANY_USERNAME')
+        self.assertDictEqual(auth, self.mock_decode.return_value)

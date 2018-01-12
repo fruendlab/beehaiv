@@ -17,12 +17,11 @@ def get_basic_token(username, password):
 
 def verify_user(username, password):
     with orm.db_session():
-        try:
-            user = User.get(username=username)
-        except orm.ObjectNotFound:
-            return False
+        user = User.get(username=username)
         if user.password == password:
-            return user.username
+            return {'username': user.username,
+                    'id': user.id,
+                    'isadmin': user.isadmin}
         else:
             return False
 
@@ -32,6 +31,7 @@ def create_token(username):
     user = User.get(username=username)
     return jwt.encode({'username': username,
                        'isadmin': user.isadmin,
+                       'id': user.id,
                        'exp': datetime.utcnow() + timedelta(minutes=5)},
                       SECRET_KEY,
                       algorithm='HS256')
@@ -39,7 +39,7 @@ def create_token(username):
 
 def verify_token(token):
     try:
-        return jwt.decode(token, SECRET_KEY, algorithm='HS256')['username']
+        return jwt.decode(token, SECRET_KEY, algorithm='HS256')
     except jwt.DecodeError:
         return False
     except jwt.ExpiredSignatureError:
@@ -54,6 +54,6 @@ def verify_admin(token):
     except jwt.ExpiredSignatureError:
         return False
     if info['isadmin']:
-        return info['username']
+        return info
     else:
         return False
