@@ -3,6 +3,7 @@
 Usage:
     beehaiv [options] token <USERNAME>:<PASSWORD>
     beehaiv [options] register <NAME> [<VARIABLE> ...]
+    beehaiv [options] observer <USERNAME>:<PASSWORD>
     beehaiv [options] trials <ID>
 
 Options:
@@ -50,7 +51,7 @@ def trials(args):
     url = args['--url'] or URL
     id_ = args['<ID>']
     token = args['--token'] or os.environ['BEEHAIV_TOKEN']
-    r = requests.get(url + '/v1/experiments/{}/trials/?username=me'.format(id_),
+    r = requests.get(url + '/v1/experiments/{}/trials/'.format(id_),
                      headers={'Authorization': token})
     print(r.json())
 
@@ -59,6 +60,17 @@ def get_token(username, password, url):
     basic_token = get_basic_token(username, password)
     r = requests.get(url + '/v1/token/',
                      headers={'AUTHORIZATION': basic_token})
+    if r.ok:
+        return r.json()
+    else:
+        raise ValueError('[{}] {}'.format(r.status_code, r.reason))
+
+
+def observer(args):
+    url = args['--url'] or URL
+    username, password = args['<USERNAME>:<PASSWORD>'].split(':')
+    r = requests.post(url + '/v1/users/',
+                      data={'username': username, 'password': password})
     if r.ok:
         return r.json()
     else:
@@ -74,3 +86,5 @@ if __name__ == '__main__':
         register(args)
     elif args['trials']:
         trials(args)
+    elif args['observer']:
+        observer(args)
