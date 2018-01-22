@@ -17,6 +17,8 @@ def handle_exceptions(exception):
         raise falcon.HTTPNotFound()
     elif isinstance(exception, orm.TransactionIntegrityError):
         raise falcon.HTTPConflict()
+    elif isinstance(exception, orm.CacheIndexError):
+        raise falcon.HTTPConflict()
     elif isinstance(exception, KeyError):
         raise falcon.HTTPBadRequest()
     else:
