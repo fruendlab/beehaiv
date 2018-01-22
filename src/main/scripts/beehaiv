@@ -73,7 +73,7 @@ def observer(args):
                       data={'username': username, 'password': password})
     if r.ok:
         return r.json()
-    elif r.status_code == '409':
+    elif str(r.status_code) == '409':
         print('User already exists')
     else:
         raise ValueError('[{}] {}'.format(r.status_code, r.reason))
