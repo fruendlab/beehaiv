@@ -5,6 +5,7 @@ Usage:
     beehaiv [options] register <NAME> [<VARIABLE> ...]
     beehaiv [options] observer <USERNAME>:<PASSWORD>
     beehaiv [options] trials <ID>
+    beehaiv [options] list-experiments
 
 Options:
     -t TOKEN, --token=TOKEN
@@ -79,6 +80,16 @@ def observer(args):
         raise ValueError('[{}] {}'.format(r.status_code, r.reason))
 
 
+def list_experiments(args):
+    url = args['--url'] or URL
+    token = args['--token'] or os.environ['BEEHAIV_TOKEN']
+    r = requests.get(url + '/v1/experiments/',
+                     headers={'Authorization': token})
+    for expr in r.json():
+        print('{id:3} | {name:12} | {trial_count:3d} | {variable_names}'
+              .format(**expr))
+
+
 if __name__ == '__main__':
     args = docopt(__doc__)
 
@@ -90,3 +101,5 @@ if __name__ == '__main__':
         trials(args)
     elif args['observer']:
         observer(args)
+    elif args['list-experiments']:
+        list_experiments(args)
