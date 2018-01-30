@@ -13,9 +13,10 @@ Options:
         environment variable BEEHAIV_TOKEN
     -u URL, --url=URL
         URL of the beehaiv server. Default: localhost:8000
+    -c CREDENTIALS, --credentials=CREDENTIALS
+        Use credentials to retrieve access token.
 """
 
-import os
 from docopt import docopt
 import requests
 
@@ -26,7 +27,11 @@ URL = 'http://127.0.0.1:8000'
 
 def register(args):
     url = args['--url'] or URL
-    token = args['--token'] or os.environ['BEEHAIV_TOKEN']
+    if args['--token']:
+        token = args['--token']
+    else:
+        token = get_token(*args['--credentials'].split(':'), url)
+
     r = requests.post(url + '/v1/experiments/',
                       headers={'Authorization': token},
                       data={
@@ -51,7 +56,10 @@ def token(args):
 def trials(args):
     url = args['--url'] or URL
     id_ = args['<ID>']
-    token = args['--token'] or os.environ['BEEHAIV_TOKEN']
+    if args['--token']:
+        token = args['--token']
+    else:
+        token = get_token(*args['--credentials'].split(':'), url)
     r = requests.get(url + '/v1/experiments/{}/trials/'.format(id_),
                      headers={'Authorization': token})
     print(r.json())
@@ -82,7 +90,10 @@ def observer(args):
 
 def list_experiments(args):
     url = args['--url'] or URL
-    token = args['--token'] or os.environ['BEEHAIV_TOKEN']
+    if args['--token']:
+        token = args['--token']
+    else:
+        token = get_token(*args['--credentials'].split(':'), url)
     r = requests.get(url + '/v1/experiments/',
                      headers={'Authorization': token})
     for expr in r.json():
