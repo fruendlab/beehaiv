@@ -131,6 +131,26 @@ def get_experiments_trials(exp_id: int, trial_id: int, response):
             raise falcon.HTTPNotFound()
 
 
+@admin_auth.put('/experiments/{exp_id}/trials/{trial_id}/', versions=1)
+def put_experiments_trials(exp_id: int, trial_id: int, response, body):
+    with orm.db_session():
+        expr = Experiment[exp_id]
+        trial = Trial[trial_id]
+        if trial in expr.trials:
+            variable_names = expr.variable_names.split(',')
+            data = {key: value
+                    for key, value in
+                    zip(variable_names,
+                        trial.trial_data.split(','))}
+            for key in data:
+                if key in body:
+                    data[key] = body.pop(key)
+            trial.trial_data = ','.join([data[key] for key in variable_names])
+            return trial.summary()
+        else:
+            raise falcon.HTTPNotFound()
+
+
 @basic_auth.get('/experiments/{exp_id}/state/', versions=1)
 def get_state(exp_id: int, response, user: hug.directives.user):
     with orm.db_session():

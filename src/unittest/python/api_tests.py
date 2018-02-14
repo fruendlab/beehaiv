@@ -240,6 +240,57 @@ class TestExperimentsEndpoint(TestCase):
                             headers=self.get_header())
         self.assertEqual(resp.status, HTTP_404)
 
+    def test_put_trial_with_id(self):
+        userid, expid = self.create_experiment_with_user()
+        trial_ids = self.create_trials_in_experiment(expid, userid)
+        resp = hug.test.put(api,
+                            '/v1/experiments/{}/trials/{}'.format(
+                                expid,
+                                trial_ids[0]),
+                            {'stimulus': 'OTHER_STIMULUS'},
+                            headers=self.get_header())
+        self.assertEqual(resp.status, HTTP_200)
+        self.assertEqual(resp.data['stimulus'], 'OTHER_STIMULUS')
+        with orm.db_session():
+            trial = api.db.Trial[trial_ids[0]]
+            self.assertIn('OTHER_STIMULUS', trial.trial_data.split(','))
+
+    def test_put_trial_from_nonexisting_exp(self):
+        resp = hug.test.put(api,
+                            '/v1/experiments/1/trials/1',
+                            headers=self.get_header())
+        self.assertEqual(resp.status, HTTP_404)
+
+    def test_put_nonexisting_trial_from_existing_exp(self):
+        userid, expid = self.create_experiment_with_user()
+        resp = hug.test.put(api,
+                            '/v1/experiment/{}/trials/1'.format(expid),
+                            headers=self.get_header())
+        self.assertEqual(resp.status, HTTP_404)
+
+    def test_put_trial_from_other_experiment(self):
+        userid, expid = self.create_experiment_with_user()
+        _, otherexpid = self.create_experiment_with_user(userid)
+        trial_ids = self.create_trials_in_experiment(expid, userid)
+        resp = hug.test.put(api,
+                            '/v1/experiments/{}/trials/{}'.format(
+                                otherexpid,
+                                trial_ids[0]),
+                            headers=self.get_header())
+        self.assertEqual(resp.status, HTTP_404)
+
+    def test_put_trial_without_admin_rights(self):
+        userid, expid = self.create_experiment_with_user()
+        other_user = self.create_user()
+        trial_ids = self.create_trials_in_experiment(expid, userid)
+        resp = hug.test.put(api,
+                            '/v1/experiments/{}/trials/{}'.format(
+                                expid,
+                                trial_ids[0]),
+                            {'stimulus': 'OTHER_STIMULUS'},
+                            headers=self.get_header(other_user))
+        self.assertEqual(resp.status, HTTP_401)
+
     def test_post_user(self):
         resp = hug.test.post(api, '/v1/users/', {'username': 'ANY_USERNAME',
                                                  'password': 'ANY_PASSWORD'})
